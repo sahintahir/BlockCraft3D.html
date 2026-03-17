@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockCraft 3D — Gerçekçi Dünya</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --green:#4CAF50;--dark-green:#2E7D32;--stone:#9E9E9E;
+  --wood:#6D4C41;--sand:#F9A825;--sky:#87CEEB;
+  --ui-bg:rgba(0,0,0,0.75);--ui-border:#555;
+  --accent:#FFD700;--red:#f44336;
+}
+body{background:#000;overflow:hidden;cursor:none;font-family:'VT323',monospace}
+canvas#game{display:block;position:fixed;inset:0;width:100vw;height:100vh}
+
+/* CROSSHAIR */
+#xhair{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;z-index:20;width:24px;height:24px}
+#xhair::before,#xhair::after{content:'';position:absolute;background:rgba(255,255,255,0.9);box-shadow:0 0 3px rgba(0,0,0,0.8)}
+#xhair::before{width:2px;height:24px;top:0;left:11px}
+#xhair::after{width:24px;height:2px;top:11px;left:0}
+
+/* HUD TOP LEFT */
+#hud{position:fixed;top:14px;left:14px;z-index:20;color:#fff;text-shadow:2px 2px 0 #000;font-size:17px;line-height:2;pointer-events:none}
+#hud .val{color:#FFD700}
+#hud .coord{color:#aef;font-size:14px}
+
+/* HEALTH BAR */
+#health{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:20;display:flex;gap:3px}
+.heart{font-size:18px;filter:drop-shadow(1px 1px 0 #000)}
+
+/* HOTBAR */
+#hotbar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:20;display:flex;gap:3px;padding:4px;background:rgba(0,0,0,0.5);border:2px solid #555;border-radius:4px}
+.slot{
+  width:54px;height:54px;border:2px solid #444;
+  border-top-color:#888;border-left-color:#888;
+  background:rgba(30,30,30,0.85);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  position:relative;cursor:pointer;transition:all 0.08s;
+  image-rendering:pixelated;
+}
+.slot.active{border-color:#FFD700;background:rgba(70,60,20,0.9);box-shadow:inset 0 0 8px rgba(255,215,0,0.3)}
+.slot .snum{position:absolute;top:2px;left:4px;font-size:11px;color:#aaa}
+.slot .sicon{font-size:26px;line-height:1}
+.slot .sname{position:absolute;bottom:-22px;font-size:11px;color:#fff;white-space:nowrap;background:rgba(0,0,0,0.8);padding:2px 7px;border-radius:2px;display:none;border:1px solid #555}
+.slot.active .sname{display:block}
+
+/* DAY/NIGHT INDICATOR */
+#daynight{position:fixed;top:14px;right:14px;z-index:20;color:#FFD700;font-size:18px;text-shadow:2px 2px 0 #000;text-align:right}
+
+/* MAIN OVERLAY */
+#overlay{
+  position:fixed;inset:0;z-index:100;
+  background:linear-gradient(180deg,#0a1a2e 0%,#1a3a1a 60%,#0d2010 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  overflow:hidden;
+}
+#overlay .stars{position:absolute;inset:0;pointer-events:none}
+#overlay .star{position:absolute;width:2px;height:2px;background:#fff;border-radius:50%;animation:twinkle 2s infinite alternate}
+@keyframes twinkle{from{opacity:0.3}to{opacity:1}}
+
+.logo-wrap{text-align:center;margin-bottom:40px;position:relative;z-index:1}
+.logo{font-family:'Press Start 2P',monospace;font-size:42px;color:#5d3;
+  text-shadow:4px 4px 0 #1a4a1a,0 0 40px #5d3,0 0 80px rgba(100,200,50,0.3);
+  letter-spacing:2px;animation:logoPulse 3s ease-in-out infinite}
+@keyframes logoPulse{0%,100%{text-shadow:4px 4px 0 #1a4a1a,0 0 40px #5d3}50%{text-shadow:4px 4px 0 #1a4a1a,0 0 60px #7f5,0 0 100px rgba(100,200,50,0.5)}}
+.logo-sub{font-family:'VT323',monospace;font-size:22px;color:#8ab;margin-top:8px;letter-spacing:4px}
+
+.menu-box{
+  background:rgba(0,0,0,0.6);border:3px solid #3a5a3a;
+  padding:30px 50px;text-align:center;min-width:380px;
+  box-shadow:0 0 40px rgba(80,160,80,0.2),inset 0 0 60px rgba(0,0,0,0.5);
+  position:relative;z-index:1;
+}
+.menu-box::before,.menu-box::after{content:'';position:absolute;width:12px;height:12px;background:#5d3}
+.menu-box::before{top:-3px;left:-3px}
+.menu-box::after{bottom:-3px;right:-3px}
+
+.btn{
+  display:block;width:100%;padding:14px 0;margin:10px 0;
+  font-family:'Press Start 2P',monospace;font-size:12px;
+  border:none;cursor:pointer;letter-spacing:1px;
+  transition:all 0.1s;position:relative;overflow:hidden;
+}
+.btn-primary{background:linear-gradient(135deg,#4CAF50,#2E7D32);color:#fff;box-shadow:4px 4px 0 #1a3a1a}
+.btn-primary:hover{background:linear-gradient(135deg,#66BB6A,#388E3C);transform:translate(-2px,-2px);box-shadow:6px 6px 0 #1a3a1a}
+.btn-primary:active{transform:translate(2px,2px);box-shadow:2px 2px 0 #1a3a1a}
+.btn-secondary{background:linear-gradient(135deg,#37474F,#263238);color:#90A4AE;box-shadow:4px 4px 0 #102030}
+.btn-secondary:hover{color:#fff;background:linear-gradient(135deg,#546E7A,#37474F);transform:translate(-2px,-2px);box-shadow:6px 6px 0 #102030}
+
+.ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;font-size:14px;color:#8ab;text-align:left}
+.ctrl-grid .k{color:#FFD700}
+
+/* PAUSE SCREEN */
+#pause{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.7);display:none;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+#pause h2{font-family:'Press Start 2P',monospace;font-size:28px;color:#FFD700;text-shadow:3px 3px 0 #8B6914;margin-bottom:30px}
+.pause-box{background:rgba(0,0,0,0.8);border:3px solid #555;padding:30px 50px;min-width:340px;text-align:center}
+
+/* TOOLTIP */
+#tip{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);z-index:30;background:rgba(0,0,0,0.85);color:#FFD700;border:1px solid #555;padding:5px 14px;font-size:16px;border-radius:2px;opacity:0;transition:opacity 0.3s;pointer-events:none}
+#tip.show{opacity:1}
+
+/* LOADING */
+#loading{position:fixed;inset:0;z-index:200;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff}
+#loading .ltitle{font-family:'Press Start 2P',monospace;font-size:16px;color:#5d3;margin-bottom:20px}
+#loadbar-wrap{width:300px;height:24px;border:3px solid #555;background:#111}
+#loadbar{height:100%;width:0%;background:linear-gradient(90deg,#2E7D32,#66BB6A);transition:width 0.1s}
+#loadtxt{margin-top:12px;font-size:16px;color:#8ab}
+
+/* BLOCK HIGHLIGHT */
+#blockhighlight{pointer-events:none}
+
+/* MINIMAP */
+#minimap{position:fixed;top:14px;right:14px;z-index:20;width:120px;height:120px;border:2px solid #555;background:rgba(0,0,0,0.7);border-radius:4px;overflow:hidden;display:none}
+#minimapCanvas{width:120px;height:120px}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="ltitle">⛏ BlockCraft 3D</div>
+  <div id="loadbar-wrap"><div id="loadbar"></div></div>
+  <div id="loadtxt">Dünya oluşturuluyor...</div>
+</div>
+
+<canvas id="game"></canvas>
+<div id="xhair"></div>
+
+<div id="hud">
+  <div>FPS: <span class="val" id="fps">0</span></div>
+  <div class="coord" id="pos">X:0 Y:0 Z:0</div>
+  <div id="timeDisp">🌞 Gündüz</div>
+</div>
+
+<div id="health"></div>
+<div id="hotbar"></div>
+<div id="tip"></div>
+
+<div id="overlay">
+  <div class="stars" id="stars"></div>
+  <div class="logo-wrap">
+    <div class="logo">⛏ BlockCraft</div>
+    <div class="logo-sub">Gerçekçi 3D Dünya</div>
+  </div>
+  <div class="menu-box">
+    <button class="btn btn-primary" onclick="startGame()">▶ OYNA</button>
+    <button class="btn btn-secondary" onclick="showControls()">⌨ KONTROLLER</button>
+    <div class="ctrl-grid" id="ctrlHelp" style="display:none">
+      <span><span class="k">WASD</span> Hareket</span>
+      <span><span class="k">SPACE</span> Zıpla</span>
+      <span><span class="k">Sol Tık</span> Kır</span>
+      <span><span class="k">Sağ Tık</span> Yerleştir</span>
+      <span><span class="k">1-8</span> Blok Seç</span>
+      <span><span class="k">Scroll</span> Blok Değiştir</span>
+      <span><span class="k">F</span> Uçma Modu</span>
+      <span><span class="k">ESC</span> Duraklat</span>
+    </div>
+  </div>
+</div>
+
+<div id="pause">
+  <h2>⏸ DURAKLATILDI</h2>
+  <div class="pause-box">
+    <button class="btn btn-primary" onclick="resumeGame()">▶ DEVAM ET</button>
+    <button class="btn btn-secondary" onclick="backToMenu()">⌂ ANA MENÜ</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── BLOCK DEFINITIONS ─────────────────────────────────────────────────────────
+const BLOCKS = [
+  {name:'Çimen',   icon:'🟩', colors:[0x558B2F,0x4E342E,0x6D4C41], rough:0.9},
+  {name:'Taş',     icon:'🪨', colors:[0x757575,0x757575,0x757575], rough:0.95},
+  {name:'Toprak',  icon:'🟫', colors:[0x6D4C41,0x6D4C41,0x6D4C41], rough:1.0},
+  {name:'Kum',     icon:'🟨', colors:[0xF9A825,0xF9A825,0xF9A825], rough:0.8},
+  {name:'Ahşap',   icon:'🪵', colors:[0x5D4037,0x8D6E63,0x5D4037], rough:0.85},
+  {name:'Yaprak',  icon:'🌿', colors:[0x2E7D32,0x2E7D32,0x2E7D32], rough:0.9, transparent:true},
+  {name:'Kömür',   icon:'🖤', colors:[0x212121,0x212121,0x212121], rough:1.0},
+  {name:'Demir',   icon:'⚙️',  colors:[0xB0BEC5,0xB0BEC5,0xB0BEC5], rough:0.4, metalness:0.8},
+  {name:'Altın',   icon:'⭐', colors:[0xFFD700,0xFFD700,0xFFD700], rough:0.2, metalness:1.0},
+  {name:'Elmas',   icon:'💎', colors:[0x00BCD4,0x00BCD4,0x00BCD4], rough:0.1, metalness:0.6},
+  {name:'Kırmızı Taş',icon:'🟥', colors:[0xE53935,0xE53935,0xE53935], rough:1.0},
+  {name:'Cam',     icon:'🔷', colors:[0x80DEEA,0x80DEEA,0x80DEEA], rough:0.05, transparent:true, opacity:0.4},
+];
+
+// Stars in menu
+(()=>{
+  const sc = document.getElementById('stars');
+  for(let i=0;i<120;i++){
+    const s=document.createElement('div');
+    s.className='star';
+    s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*70}%;animation-delay:${Math.random()*2}s;opacity:${0.2+Math.random()*0.8}`;
+    sc.appendChild(s);
+  }
+})();
+
+function showControls(){
+  const h=document.getElementById('ctrlHelp');
+  h.style.display=h.style.display==='none'?'grid':'none';
+}
+
+// ─── ENGINE STATE ──────────────────────────────────────────────────────────────
+let scene,camera,renderer,clock,sun,sunMesh,moonMesh,ambLight,sunLight,skyMesh;
+let pitch=0,yaw=0;
+let vel=new THREE.Vector3();
+let onGround=false,flying=false;
+let keys={};
+let gameActive=false;
+let blocks={},meshes={};
+let selectedSlot=0;
+let health=20;
+let worldTime=0; // 0..1 full day cycle
+let frameCount=0,lastFPSTime=performance.now();
+let highlightMesh=null;
+const WORLD_SIZE=28;
+const CHUNK_SEED=Math.random()*1000;
+
+// ─── NOISE ─────────────────────────────────────────────────────────────────────
+function fade(t){return t*t*t*(t*(t*6-15)+10)}
+function lerp(a,b,t){return a+t*(b-a)}
+function grad(h,x,y){const v=h&3;const u=v<2?x:y,vv=v<2?y:x;return((h&1)?-u:u)+((h&2)?-vv:vv)}
+const P=(()=>{const a=[...Array(256)].map((_,i)=>i).sort(()=>Math.random()-0.5);return [...a,...a]})();
+function noise2d(x,y){
+  const X=Math.floor(x)&255,Y=Math.floor(y)&255;
+  x-=Math.floor(x);y-=Math.floor(y);
+  const u=fade(x),v=fade(y);
+  const a=P[X]+Y,b=P[X+1]+Y;
+  return lerp(lerp(grad(P[a],x,y),grad(P[b],x-1,y),u),lerp(grad(P[a+1],x,y-1),grad(P[b+1],x-1,y-1),u),v);
+}
+function fbm(x,y,oct=4){
+  let v=0,amp=1,freq=1,max=0;
+  for(let i=0;i<oct;i++){v+=noise2d(x*freq,y*freq)*amp;max+=amp;amp*=0.5;freq*=2;}
+  return v/max;
+}
+
+// ─── CANVAS TEXTURE ────────────────────────────────────────────────────────────
+function makeCanvasTexture(drawFn, size=16){
+  const c=document.createElement('canvas');c.width=c.height=size;
+  const ctx=c.getContext('2d');drawFn(ctx,size);
+  const tex=new THREE.CanvasTexture(c);
+  tex.magFilter=THREE.NearestFilter;tex.minFilter=THREE.NearestFilter;
+  return tex;
+}
+function hexToRgb(h){return{r:(h>>16)&255,g:(h>>8)&255,b:h&255}}
+function lighter(hex,amt=40){const c=hexToRgb(hex);return`rgb(${Math.min(255,c.r+amt)},${Math.min(255,c.g+amt)},${Math.min(255,c.b+amt)})`}
+function darker(hex,amt=40){const c=hexToRgb(hex);return`rgb(${Math.max(0,c.r-amt)},${Math.max(0,c.g-amt)},${Math.max(0,c.b-amt)})`}
+function hexCss(h){return`#${h.toString(16).padStart(6,'0')}`}
+
+function makeBlockTexture(colHex, face='side'){
+  return makeCanvasTexture((ctx,sz)=>{
+    const base=hexCss(colHex);
+    ctx.fillStyle=face==='top'?lighter(colHex,20):face==='bottom'?darker(colHex,30):base;
+    ctx.fillRect(0,0,sz,sz);
+    // Pixel noise
+    for(let i=0;i<sz*sz*0.35;i++){
+      const px=Math.random()*sz|0,py=Math.random()*sz|0;
+      const v=(Math.random()-0.5)*30|0;
+      const c=hexToRgb(colHex);
+      ctx.fillStyle=`rgba(${c.r+v},${c.g+v},${c.b+v},0.6)`;
+      ctx.fillRect(px,py,1,1);
+    }
+    // Grid lines
+    ctx.strokeStyle='rgba(0,0,0,0.15)';ctx.lineWidth=0.5;
+    for(let i=0;i<=sz;i+=sz){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,sz);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(sz,i);ctx.stroke();}
+  });
+}
+
+// ─── MATERIALS CACHE ───────────────────────────────────────────────────────────
+const matCache={};
+function getMaterials(blockIdx){
+  if(matCache[blockIdx]) return matCache[blockIdx];
+  const b=BLOCKS[blockIdx];
+  const mats=[];
+  const faces=['side','side','top','bottom','side','side'];
+  faces.forEach((f,i)=>{
+    const col=f==='top'?b.colors[0]:f==='bottom'?b.colors[2]:b.colors[1];
+    const tex=makeBlockTexture(col,f);
+    const m=new THREE.MeshStandardMaterial({
+      map:tex,
+      roughness:b.rough||0.9,
+      metalness:b.metalness||0,
+      transparent:!!(b.transparent),
+      opacity:b.opacity||1,
+    });
+    mats.push(m);
+  });
+  matCache[blockIdx]=mats;
+  return mats;
+}
+
+const GEO=new THREE.BoxGeometry(1,1,1);
+
+function bkey(x,y,z){return`${x},${y},${z}`}
+
+function placeBlock(x,y,z,type){
+  const k=bkey(x,y,z);
+  if(meshes[k]) return;
+  blocks[k]=type;
+  const mesh=new THREE.Mesh(GEO,getMaterials(type));
+  mesh.position.set(x,y,z);
+  mesh.castShadow=true;mesh.receiveShadow=true;
+  scene.add(mesh);
+  meshes[k]=mesh;
+}
+function destroyBlock(x,y,z){
+  const k=bkey(x,y,z);
+  if(!meshes[k])return;
+  scene.remove(meshes[k]);
+  delete meshes[k];delete blocks[k];
+}
+
+// ─── WORLD GENERATION ──────────────────────────────────────────────────────────
+function genWorld(onProgress){
+  const S=WORLD_SIZE;
+  let done=0,total=(S*2+1)*(S*2+1);
+
+  function* gen(){
+    for(let x=-S;x<=S;x++){
+      for(let z=-S;z<=S;z++){
+        const nx=(x+CHUNK_SEED)*0.05,nz=(z+CHUNK_SEED)*0.05;
+        const h=Math.round(fbm(nx,nz,5)*14)+3;
+        const biome=fbm(nx*0.5+100,nz*0.5+100,3);
+
+        // Surface block
+        const isSand=biome<-0.15;
+        const surfType=isSand?3:0; // sand or grass
+
+        placeBlock(x,h,z,surfType);
+        // Sub
+        for(let dy=1;dy<=3;dy++) placeBlock(x,h-dy,z,isSand?3:2);
+        // Stone
+        for(let dy=4;dy<=h+2;dy++) placeBlock(x,h-dy,z,1);
+
+        // Ore veins
+        for(let dy=2;dy<=h+2;dy++){
+          const oy=h-dy;
+          const r=Math.random();
+          if(oy<-5&&r<0.015) placeBlock(x,oy,z,6); // coal
+          if(oy<-8&&r<0.006) placeBlock(x,oy,z,7); // iron
+          if(oy<-12&&r<0.002) placeBlock(x,oy,z,8); // gold
+          if(oy<-15&&r<0.001) placeBlock(x,oy,z,9); // diamond
+        }
+
+        done++;
+        if(done%50===0){onProgress(done/total);yield;}
+      }
+    }
+
+    // Trees
+    for(let x=-S;x<=S;x+=4){
+      for(let z=-S;z<=S;z+=4){
+        if(Math.random()>0.45) continue;
+        const nx=(x+CHUNK_SEED)*0.05,nz=(z+CHUNK_SEED)*0.05;
+        const h=Math.round(fbm(nx,nz,5)*14)+3;
+        const biome=fbm(nx*0.5+100,nz*0.5+100,3);
+        if(biome<-0.1) continue;
+        const th=4+Math.floor(Math.random()*3);
+        for(let i=1;i<=th;i++) placeBlock(x,h+i,z,4);
+        for(let lx=-2;lx<=2;lx++) for(let lz=-2;lz<=2;lz++) for(let ly=th-1;ly<=th+2;ly++){
+          if(Math.abs(lx)+Math.abs(lz)<=3&&!(lx===0&&lz===0&&ly<th+1)){
+            if(!blocks[bkey(x+lx,h+ly,z+lz)]) placeBlock(x+lx,h+ly,z+lz,5);
+          }
+        }
+      }
+    }
+    onProgress(1);
+  }
+
+  const g=gen();
+  function step(){
+    for(let i=0;i<80;i++){if(g.next().done) return;}
+    requestAnimationFrame(step);
+  }
+  step();
+}
+
+// ─── SKY / DAY-NIGHT ──────────────────────────────────────────────────────────
+function buildSky(){
+  // Sky dome
+  const sgeo=new THREE.SphereGeometry(90,16,16);
+  const smat=new THREE.MeshBasicMaterial({side:THREE.BackSide,vertexColors:true});
+  // We'll just update fog/bg color
+  sgeo.dispose();
+
+  // Sun
+  const sunGeo=new THREE.SphereGeometry(3,8,8);
+  const sunMat=new THREE.MeshBasicMaterial({color:0xFFF9C4});
+  sunMesh=new THREE.Mesh(sunGeo,sunMat);
+  scene.add(sunMesh);
+
+  // Moon
+  const moonGeo=new THREE.SphereGeometry(2,8,8);
+  const moonMat=new THREE.MeshBasicMaterial({color:0xE0E0E0});
+  moonMesh=new THREE.Mesh(moonGeo,moonMat);
+  scene.add(moonMesh);
+
+  // Stars (points)
+  const starGeo=new THREE.BufferGeometry();
+  const starPos=[];
+  for(let i=0;i<1500;i++){
+    const theta=Math.random()*Math.PI*2;
+    const phi=Math.acos(2*Math.random()-1);
+    const r=80;
+    starPos.push(r*Math.sin(phi)*Math.cos(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.sin(theta));
+  }
+  starGeo.setAttribute('position',new THREE.Float32BufferAttribute(starPos,3));
+  const starMat=new THREE.PointsMaterial({color:0xffffff,size:0.4});
+  const starField=new THREE.Points(starGeo,starMat);
+  starField.name='stars';
+  scene.add(starField);
+}
+
+function updateDayNight(dt){
+  worldTime=(worldTime+dt/120)%1; // 120s full day
+  const angle=worldTime*Math.PI*2;
+  const r=70;
+  sunMesh.position.set(Math.cos(angle)*r,Math.sin(angle)*r,0);
+  moonMesh.position.set(-Math.cos(angle)*r,-Math.sin(angle)*r,0);
+
+  const dayFactor=Math.max(0,Math.sin(angle));
+  const nightFactor=Math.max(0,-Math.sin(angle));
+
+  // Sky color
+  const daySky=new THREE.Color(0x87CEEB);
+  const nightSky=new THREE.Color(0x050A14);
+  const dawnSky=new THREE.Color(0xFF7043);
+  let sky;
+  const t=worldTime;
+  if(t<0.25) sky=nightSky.clone().lerp(daySky,t*4);
+  else if(t<0.5) sky=daySky;
+  else if(t<0.6) sky=daySky.clone().lerp(dawnSky,(t-0.5)*10);
+  else if(t<0.75) sky=dawnSky.clone().lerp(nightSky,(t-0.6)/0.15);
+  else sky=nightSky;
+  renderer.setClearColor(sky);
+  scene.fog.color.copy(sky);
+
+  sunLight.intensity=0.3+dayFactor*1.2;
+  sunLight.position.copy(sunMesh.position);
+  ambLight.intensity=0.08+dayFactor*0.55+nightFactor*0.05;
+
+  // Star visibility
+  const starField=scene.getObjectByName('stars');
+  if(starField) starField.material.opacity=nightFactor;
+
+  const disp=document.getElementById('timeDisp');
+  if(dayFactor>0.3) disp.textContent='🌞 Gündüz';
+  else if(dayFactor>0) disp.textContent='🌅 Şafak';
+  else disp.textContent='🌙 Gece';
+}
+
+// ─── HIGHLIGHT ─────────────────────────────────────────────────────────────────
+function buildHighlight(){
+  const g=new THREE.BoxGeometry(1.02,1.02,1.02);
+  const m=new THREE.MeshBasicMaterial({color:0x000000,wireframe:true,transparent:true,opacity:0.5});
+  highlightMesh=new THREE.Mesh(g,m);
+  highlightMesh.visible=false;
+  scene.add(highlightMesh);
+}
+
+// ─── RAYCASTING ───────────────────────────────────────────────────────────────
+function raycast(){
+  const dir=new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const origin=camera.position.clone();
+  const STEP=0.04,MAX=7;
+  let prev={x:Math.round(origin.x),y:Math.round(origin.y),z:Math.round(origin.z)};
+  for(let d=STEP;d<MAX;d+=STEP){
+    const p=origin.clone().addScaledVector(dir,d);
+    const bx=Math.round(p.x),by=Math.round(p.y),bz=Math.round(p.z);
+    if(blocks[bkey(bx,by,bz)]!==undefined){
+      return{hit:{x:bx,y:by,z:bz},place:prev};
+    }
+    prev={x:bx,y:by,z:bz};
+  }
+  return null;
+}
+
+// ─── COLLISION ─────────────────────────────────────────────────────────────────
+function collidesAt(px,py,pz){
+  const W=0.4,H=1.8;
+  for(let dx of[-W,W]) for(let dz of[-W,W]) for(let dy of[0,-1,-H]){
+    if(blocks[bkey(Math.round(px+dx),Math.round(py+dy),Math.round(pz+dz))]!==undefined) return true;
+  }
+  return false;
+}
+
+// ─── INPUT ────────────────────────────────────────────────────────────────────
+function setupInput(){
+  document.addEventListener('keydown',e=>{
+    keys[e.code]=true;
+    const n=parseInt(e.key);
+    if(n>=1&&n<=BLOCKS.length){selectedSlot=n-1;buildHotbar();showTip(BLOCKS[selectedSlot].name);}
+    if(e.code==='KeyF'){flying=!flying;vel.y=0;showTip(flying?'Uçma Modu Açık ✈':'Uçma Modu Kapalı');}
+    if(e.code==='Space'&&!flying&&onGround){vel.y=7.5;onGround=false;}
+    if(e.code==='Escape'&&gameActive){pauseGame();}
+    e.preventDefault();
+  });
+  document.addEventListener('keyup',e=>{keys[e.code]=false;});
+
+  document.addEventListener('mousemove',e=>{
+    if(document.pointerLockElement===document.body){
+      yaw-=e.movementX*0.0018;
+      pitch-=e.movementY*0.0018;
+      pitch=Math.max(-Math.PI/2+0.01,Math.min(Math.PI/2-0.01,pitch));
+    }
+  });
+
+  document.addEventListener('mousedown',e=>{
+    if(!gameActive)return;
+    if(document.pointerLockElement!==document.body){document.body.requestPointerLock();return;}
+    const r=raycast();
+    if(e.button===0&&r){
+      destroyBlock(r.hit.x,r.hit.y,r.hit.z);
+      if(highlightMesh) highlightMesh.visible=false;
+    } else if(e.button===2&&r){
+      const{x,y,z}=r.place;
+      const cx=Math.round(camera.position.x),cy=Math.round(camera.position.y-0.9),cz=Math.round(camera.position.z);
+      if(!(x===cx&&(y===cy||y===cy-1)&&z===cz)){
+        placeBlock(x,y,z,selectedSlot);
+      }
+    }
+  });
+  document.addEventListener('contextmenu',e=>e.preventDefault());
+
+  document.addEventListener('wheel',e=>{
+    selectedSlot=(selectedSlot+(e.deltaY>0?1:-1)+BLOCKS.length)%BLOCKS.length;
+    buildHotbar();showTip(BLOCKS[selectedSlot].name);
+  });
+
+  document.addEventListener('pointerlockchange',()=>{
+    if(document.pointerLockElement!==document.body&&gameActive) pauseGame();
+  });
+}
+
+// ─── UI HELPERS ───────────────────────────────────────────────────────────────
+function showTip(msg){
+  const t=document.getElementById('tip');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1800);
+}
+function buildHotbar(){
+  const bar=document.getElementById('hotbar');
+  bar.innerHTML='';
+  BLOCKS.forEach((b,i)=>{
+    const s=document.createElement('div');
+    s.className='slot'+(i===selectedSlot?' active':'');
+    s.innerHTML=`<span class="snum">${i+1}</span><span class="sicon">${b.icon}</span><span class="sname">${b.name}</span>`;
+    s.onclick=()=>{selectedSlot=i;buildHotbar();showTip(b.name);};
+    bar.appendChild(s);
+  });
+}
+function buildHealth(){
+  const h=document.getElementById('health');
+  h.innerHTML='';
+  for(let i=0;i<10;i++){
+    const hrt=document.createElement('span');
+    hrt.className='heart';
+    hrt.textContent=i*2<health?'❤️':'🖤';
+    h.appendChild(hrt);
+  }
+}
+
+// ─── MAIN GAME INIT ───────────────────────────────────────────────────────────
+function initEngine(){
+  const canvas=document.getElementById('game');
+  scene=new THREE.Scene();
+  scene.fog=new THREE.Fog(0x87CEEB,30,80);
+
+  camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.05,120);
+  camera.position.set(0,10,0);
+
+  renderer=new THREE.WebGLRenderer({canvas,antialias:false,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x87CEEB);
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.0;
+
+  ambLight=new THREE.AmbientLight(0xffffff,0.5);
+  scene.add(ambLight);
+
+  sunLight=new THREE.DirectionalLight(0xFFF9C4,1.2);
+  sunLight.position.set(30,50,20);
+  sunLight.castShadow=true;
+  sunLight.shadow.mapSize.set(1024,1024);
+  sunLight.shadow.camera.near=1;
+  sunLight.shadow.camera.far=120;
+  sunLight.shadow.camera.left=-50;sunLight.shadow.camera.right=50;
+  sunLight.shadow.camera.top=50;sunLight.shadow.camera.bottom=-50;
+  scene.add(sunLight);
+
+  // Fill light
+  const fill=new THREE.HemisphereLight(0x87CEEB,0x3E2723,0.4);
+  scene.add(fill);
+
+  buildSky();
+  buildHighlight();
+  setupInput();
+  clock=new THREE.Clock();
+
+  window.addEventListener('resize',()=>{
+    renderer.setSize(innerWidth,innerHeight);
+    camera.aspect=innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+  });
+}
+
+// ─── GAME LOOP ────────────────────────────────────────────────────────────────
+function gameLoop(){
+  requestAnimationFrame(gameLoop);
+  if(!gameActive)return;
+
+  const dt=Math.min(clock.getDelta(),0.05);
+
+  // FPS
+  frameCount++;
+  const now=performance.now();
+  if(now-lastFPSTime>600){
+    document.getElementById('fps').textContent=Math.round(frameCount*1000/(now-lastFPSTime));
+    frameCount=0;lastFPSTime=now;
+  }
+
+  // Camera rotation
+  camera.quaternion.setFromEuler(new THREE.Euler(pitch,yaw,0,'YXZ'));
+
+  // Movement
+  const spd=flying?10:5;
+  const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const right=new THREE.Vector3(-Math.cos(yaw),0,Math.sin(yaw));
+  const mv=new THREE.Vector3();
+  if(keys['KeyW']) mv.addScaledVector(fwd,1);
+  if(keys['KeyS']) mv.addScaledVector(fwd,-1);
+  if(keys['KeyA']) mv.addScaledVector(right,1);
+  if(keys['KeyD']) mv.addScaledVector(right,-1);
+  if(mv.lengthSq()>0) mv.normalize();
+
+  if(flying){
+    vel.x=mv.x*spd;vel.z=mv.z*spd;
+    if(keys['Space']) vel.y=6;
+    else if(keys['ShiftLeft']||keys['ControlLeft']) vel.y=-6;
+    else vel.y*=0.85;
+  } else {
+    const GRAV=-22;
+    vel.y+=GRAV*dt;
+    vel.x=mv.x*spd;vel.z=mv.z*spd;
+  }
+
+  // Axis collision
+  const nx=camera.position.x+vel.x*dt;
+  if(!collidesAt(nx,camera.position.y,camera.position.z)) camera.position.x=nx;
+  else vel.x=0;
+
+  const nz=camera.position.z+vel.z*dt;
+  if(!collidesAt(camera.position.x,camera.position.y,nz)) camera.position.z=nz;
+  else vel.z=0;
+
+  const ny=camera.position.y+vel.y*dt;
+  if(!collidesAt(camera.position.x,ny,camera.position.z)){
+    camera.position.y=ny;onGround=false;
+  } else {
+    if(vel.y<0) onGround=true;
+    vel.y=0;
+  }
+
+  // Void
+  if(camera.position.y<-25){camera.position.set(0,12,0);vel.set(0,0,0);}
+
+  // Update highlight
+  const r=raycast();
+  if(r&&highlightMesh){
+    highlightMesh.position.set(r.hit.x,r.hit.y,r.hit.z);
+    highlightMesh.visible=true;
+  } else if(highlightMesh) highlightMesh.visible=false;
+
+  // HUD
+  document.getElementById('pos').textContent=
+    `X:${Math.round(camera.position.x)} Y:${Math.round(camera.position.y)} Z:${Math.round(camera.position.z)}`;
+
+  updateDayNight(dt);
+  renderer.render(scene,camera);
+}
+
+// ─── GAME START/PAUSE ─────────────────────────────────────────────────────────
+function startGame(){
+  document.getElementById('overlay').style.display='none';
+
+  // Loading screen
+  const ld=document.getElementById('loading');
+  ld.style.display='flex';
+
+  if(!scene) initEngine();
+  buildHotbar();buildHealth();
+
+  genWorld(p=>{
+    document.getElementById('loadbar').style.width=(p*100)+'%';
+    const msgs=['Bloklar yerleştiriliyor...','Ağaçlar büyütülüyor...','Madenler gizleniyor...','Işık hesaplanıyor...','Neredeyse hazır...'];
+    document.getElementById('loadtxt').textContent=msgs[Math.min(msgs.length-1,Math.floor(p*msgs.length))];
+    if(p>=1){
+      setTimeout(()=>{
+        ld.style.display='none';
+        document.body.requestPointerLock();
+        gameActive=true;
+        gameLoop();
+      },400);
+    }
+  });
+}
+
+function pauseGame(){
+  gameActive=false;
+  document.exitPointerLock();
+  document.getElementById('pause').style.display='flex';
+}
+function resumeGame(){
+  document.getElementById('pause').style.display='none';
+  document.body.requestPointerLock();
+  gameActive=true;
+}
+function backToMenu(){
+  document.getElementById('pause').style.display='none';
+  gameActive=false;
+  document.getElementById('overlay').style.display='flex';
+}
+</script>
+</body>
+</html>
